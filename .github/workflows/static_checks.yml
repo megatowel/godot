@@ -31,6 +31,9 @@ jobs:
           files=$(echo "$files" | xargs -I {} sh -c 'echo "\"./{}\""' | tr '\n' ' ')
           echo "CHANGED_FILES=$files" >> $GITHUB_ENV
 
+      - name: Setup Python
+        uses: actions/setup-python@v3
+
       - name: Style checks via pre-commit
         uses: pre-commit/action@v3.0.1
         with:
