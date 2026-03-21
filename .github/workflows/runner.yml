@@ -1,6 +1,9 @@
 name: 🔗 GHA
 on: [push, pull_request, merge_group, workflow_dispatch]
 
+env:
+  GODOT_VERSION_STATUS: "hyrize"
+
 concurrency:
   group: ${{ github.workflow }}|${{ github.ref_name }}
   cancel-in-progress: true
