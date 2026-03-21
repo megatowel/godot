@@ -35,10 +35,10 @@ jobs:
 #    needs: static-checks
 #    uses: ./.github/workflows/macos_builds.yml
 
-#  windows-build:
-#    name: 🏁 Windows
-#    needs: static-checks
-#    uses: ./.github/workflows/windows_builds.yml
+  windows-build:
+    name: 🏁 Windows
+    needs: static-checks
+    uses: ./.github/workflows/windows_builds.yml
 
   web-build:
     name: 🌐 Web
