@@ -166,10 +166,10 @@ def get_opts():
 
     mingw = os.getenv("MINGW_PREFIX", "")
 
-    # Dependencies folder.
-    deps_folder = os.getenv("LOCALAPPDATA")
-    if deps_folder:
-        deps_folder = os.path.join(deps_folder, "Godot", "build_deps")
+    # Direct3D 12 SDK dependencies folder.
+    d3d12_deps_folder = os.getenv("LOCALAPPDATA")
+    if d3d12_deps_folder:
+        d3d12_deps_folder = os.path.join(d3d12_deps_folder, "Godot", "build_deps")
     else:
         # Cross-compiling, the deps install script puts things in `bin`.
         # Getting an absolute path to it is a bit hacky in Python.
@@ -178,9 +178,9 @@ def get_opts():
 
             caller_frame = inspect.stack()[1]
             caller_script_dir = os.path.dirname(os.path.abspath(caller_frame[1]))
-            deps_folder = os.path.join(caller_script_dir, "bin", "build_deps")
+            d3d12_deps_folder = os.path.join(caller_script_dir, "bin", "build_deps")
         except Exception:  # Give up.
-            deps_folder = ""
+            d3d12_deps_folder = ""
 
     return [
         ("mingw_prefix", "MinGW prefix", mingw),
@@ -194,23 +194,17 @@ def get_opts():
         BoolVariable("debug_crt", "Compile with MSVC's debug CRT (/MDd)", False),
         BoolVariable("incremental_link", "Use MSVC incremental linking. May increase or decrease build times.", False),
         BoolVariable("silence_msvc", "Silence MSVC's cl/link stdout bloat, redirecting any errors to stderr.", True),
-        # Screen reader support.
-        (
-            "accesskit_sdk_path",
-            "Path to the AccessKit C SDK",
-            os.path.join(deps_folder, "accesskit"),
-        ),
         ("angle_libs", "Path to the ANGLE static libraries", ""),
         # Direct3D 12 support.
         (
             "mesa_libs",
             "Path to the MESA/NIR static libraries (required for D3D12)",
-            os.path.join(deps_folder, "mesa"),
+            os.path.join(d3d12_deps_folder, "mesa"),
         ),
         (
             "agility_sdk_path",
             "Path to the Agility SDK distribution (optional for D3D12)",
-            os.path.join(deps_folder, "agility_sdk"),
+            os.path.join(d3d12_deps_folder, "agility_sdk"),
         ),
         BoolVariable(
             "agility_sdk_multiarch",
@@ -221,7 +215,7 @@ def get_opts():
         (
             "pix_path",
             "Path to the PIX runtime distribution (optional for D3D12)",
-            os.path.join(deps_folder, "pix"),
+            os.path.join(d3d12_deps_folder, "pix"),
         ),
     ]
 
@@ -420,7 +414,7 @@ def configure_msvc(env: "SConsEnvironment"):
         LIBS += ["psapi", "dbghelp"]
 
     if env["accesskit"]:
-        if os.path.exists(env["accesskit_sdk_path"]):
+        if env["accesskit_sdk_path"] != "":
             env.Prepend(CPPPATH=[env["accesskit_sdk_path"] + "/include"])
             if env["arch"] == "arm64":
                 env.Append(LIBPATH=[env["accesskit_sdk_path"] + "/lib/windows/arm64/msvc/static"])
@@ -438,16 +432,9 @@ def configure_msvc(env: "SConsEnvironment"):
                 "userenv",
                 "ntdll",
             ]
-            env.Append(CPPDEFINES=["ACCESSKIT_ENABLED"])
         else:
-            print_error(
-                "The screen reader support driver requires dependencies to be installed.\n"
-                f"You can install them by running `python {os.path.join('misc', 'scripts', 'install_accesskit.py')}`.\n"
-                "See the documentation for more information:\n"
-                "\thttps://docs.godotengine.org/en/latest/engine_details/development/compiling/compiling_for_windows.html\n"
-                "Alternatively, disable this driver by compiling with `accesskit=no` explicitly."
-            )
-            env["accesskit"] = False
+            env.Append(CPPDEFINES=["ACCESSKIT_DYNAMIC"])
+        env.Append(CPPDEFINES=["ACCESSKIT_ENABLED"])
 
     if env["vulkan"]:
         env.AppendUnique(CPPDEFINES=["VULKAN_ENABLED", "RD_ENABLED"])
@@ -799,7 +786,7 @@ def configure_mingw(env: "SConsEnvironment"):
     )
 
     if env["accesskit"]:
-        if os.path.exists(env["accesskit_sdk_path"]):
+        if env["accesskit_sdk_path"] != "":
             env.Prepend(CPPPATH=[env["accesskit_sdk_path"] + "/include"])
             if env["use_llvm"]:
                 if env["arch"] == "arm64":
@@ -826,17 +813,10 @@ def configure_mingw(env: "SConsEnvironment"):
                     "ntdll",
                 ]
             )
-            env.Append(LIBPATH=["#platform/windows"])
-            env.Append(CPPDEFINES=["ACCESSKIT_ENABLED"])
         else:
-            print_warning(
-                "The screen reader support driver requires dependencies to be installed.\n"
-                f"You can install them by running `python {os.path.join('misc', 'scripts', 'install_accesskit.py')}`.\n"
-                "See the documentation for more information:\n"
-                "\thttps://docs.godotengine.org/en/latest/engine_details/development/compiling/compiling_for_windows.html\n"
-                "Alternatively, disable this driver by compiling with `accesskit=no` explicitly."
-            )
-            env["accesskit"] = False
+            env.Append(CPPDEFINES=["ACCESSKIT_DYNAMIC"])
+        env.Append(LIBPATH=["#platform/windows"])
+        env.Append(CPPDEFINES=["ACCESSKIT_ENABLED"])
 
     if env.debug_features:
         env.Append(LIBS=["psapi", "dbghelp"])
@@ -945,7 +925,7 @@ def check_d3d12_installed(env, suffix):
     if not os.path.exists(env["mesa_libs"]) and not os.path.exists(env["mesa_libs"] + "-" + suffix):
         print_error(
             "The Direct3D 12 rendering driver requires dependencies to be installed.\n"
-            f"You can install them by running `python {os.path.join('misc', 'scripts', 'install_d3d12_sdk_windows.py')}`.\n"
+            "You can install them by running `python misc\\scripts\\install_d3d12_sdk_windows.py`.\n"
             "See the documentation for more information:\n"
             "\thttps://docs.godotengine.org/en/latest/engine_details/development/compiling/compiling_for_windows.html\n"
             "Alternatively, disable this driver by compiling with `d3d12=no` explicitly."
